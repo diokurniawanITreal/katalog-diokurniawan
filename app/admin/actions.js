@@ -4,6 +4,24 @@ import { redirect } from "next/navigation";
 import { createSessionClient } from "@/lib/supabase/server";
 
 /**
+ * Memastikan admin sudah terautentikasi di server sebelum menjalankan aksi mutasi data.
+ * Memenuhi aturan keamanan nomor 3 di AGENTS.md.
+ */
+export async function wajibLogin() {
+  const supabase = await createSessionClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    redirect("/admin/login");
+  }
+
+  return { supabase, user };
+}
+
+/**
  * Server Action untuk memproses login admin menggunakan Supabase Auth.
  * Menerima formData dari form login.
  */
@@ -56,24 +74,17 @@ export const logout = keluar;
 
 /**
  * Server Action untuk mengganti password admin yang sedang login.
- * Validasi: admin sudah login, password baru minimal 8 karakter, dan sama dengan konfirmasi.
+ * Validasi: admin sudah login di server, password baru minimal 8 karakter, dan sama dengan konfirmasi.
  */
 export async function gantiPassword(prevStateOrFormData, maybeFormData) {
   const isActionState = maybeFormData instanceof FormData;
   const formData = isActionState ? maybeFormData : prevStateOrFormData;
 
+  // Verifikasi autentikasi di sisi server (Aturan Keamanan No. 3)
+  const { supabase } = await wajibLogin();
+
   const passwordBaru = formData?.get("password_baru");
   const konfirmasiPassword = formData?.get("konfirmasi_password");
-
-  const supabase = await createSessionClient();
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    redirect("/admin/login");
-  }
 
   if (!passwordBaru || typeof passwordBaru !== "string" || passwordBaru.length < 8) {
     const errorMsg = "Password baru minimal 8 karakter.";
